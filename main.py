@@ -20,19 +20,18 @@ PRODUCTS: Dict[str, Dict[str, object]] = {}
 
 
 def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
-    """
-    Load products from a CSV file into memory.
-
-    CSV columns: sku,name,unit,unit_price,description
-    Returns a dict keyed by SKU.
-    """
+    module_dir = Path(__file__).resolve().parent
     path = Path(csv_path)
+    if not path.is_absolute():
+        path = module_dir / path
+
     if not path.is_file():
-        logger.warning("CSV file not found: %s", path.resolve())
-        return {}
+        abs_path = path.resolve()
+        logger.error("CSV file not found: %s", abs_path)
+        raise FileNotFoundError(f"CSV file not found: {abs_path}")
 
     data: Dict[str, Dict[str, object]] = {}
-    with path.open("r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if not row.get("sku"):
@@ -50,7 +49,7 @@ def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
                 "description": (row.get("description") or "").strip(),
             }
 
-    logger.info("Loaded %d products from %s", len(data), path)
+    logger.info("Loaded %d products from %s", len(data), path.resolve())
     return data
 
 
@@ -94,7 +93,7 @@ def search_products(query: str, limit: int = 10) -> List[dict]:
         return []
     results: List[dict] = []
     for p in PRODUCTS.values():
-        if q in str(p.get("name", "")).lower():
+        if q in str(p.get("name", "")).lower() or q in str(p.get("description", "")).lower():
             results.append(p)
             if len(results) >= max(1, limit):
                 break
