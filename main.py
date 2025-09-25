@@ -1,8 +1,11 @@
 """
-FastMCP Echo Server
+FastMCP Server with CSV-backed product lookup.
 """
 
+import csv
 import logging
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from fastmcp import FastMCP
 
@@ -10,44 +13,99 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create server
-mcp = FastMCP("Echo Server")
+mcp = FastMCP("Product & Tax Server")
 
-my_cats = []
+# In-memory products store loaded from prices.csv
+PRODUCTS: Dict[str, Dict[str, object]] = {}
+
+
+def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
+    """
+    Load products from a CSV file into memory.
+
+    CSV columns: sku,name,unit,unit_price,description
+    Returns a dict keyed by SKU.
+    """
+    path = Path(csv_path)
+    if not path.is_file():
+        logger.warning("CSV file not found: %s", path.resolve())
+        return {}
+
+    data: Dict[str, Dict[str, object]] = {}
+    with path.open("r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if not row.get("sku"):
+                continue
+            try:
+                price = float(row.get("unit_price", 0) or 0)
+            except (TypeError, ValueError):
+                price = 0.0
+            sku = str(row["sku"]).strip()
+            data[sku] = {
+                "sku": sku,
+                "name": (row.get("name") or "").strip(),
+                "unit": (row.get("unit") or "").strip(),
+                "unit_price": price,
+                "description": (row.get("description") or "").strip(),
+            }
+
+    logger.info("Loaded %d products from %s", len(data), path)
+    return data
+
 
 @mcp.tool
-def add_cat(name: str) -> str:
-    """Add a cat to the list"""
-    my_cats.append(name)
-    return f"Cat {name} added."
+def calc_tax(amount: float, year: int) -> float:
+    """
+    Налоговый калькулятор НДФЛ для РФ (физлица).
+    """
+    # Граничные случаи
+    if amount <= 0:
+        return 0.0
+
+    # До 2020 включительно — плоская ставка
+    if year <= 2020:
+        return round(amount * 0.13, 2)
+
+    # С 2021 — прогрессия 13%/15% с порогом 5 млн ₽
+    threshold = 5_000_000.0
+    base_part = min(amount, threshold)
+    over_part = max(amount - threshold, 0.0)
+    tax = base_part * 0.13 + over_part * 0.15
+    return round(tax, 2)
+
 
 @mcp.tool
-def list_cats() -> str:
-    """List all cats"""
-    return "Cats: " + ", ".join(my_cats)
+def get_product_by_sku(sku: str) -> Optional[dict]:
+    """
+    Вернуть товар по SKU из загруженного CSV.
+    """
+    sku_norm = sku.strip()
+    return PRODUCTS.get(sku_norm)
+
 
 @mcp.tool
-def echo_tool(text: str) -> str:
-    """Echo the input text"""
-    return text
-
-
-@mcp.resource("echo://static")
-def echo_resource() -> str:
-    return "Echo!"
-
-
-@mcp.resource("echo://{text}")
-def echo_template(text: str) -> str:
-    """Echo the input text"""
-    return f"Echo: {text}"
-
-
-@mcp.prompt("echo")
-def echo_prompt(text: str) -> str:
-    return text
+def search_products(query: str, limit: int = 10) -> List[dict]:
+    """
+    Поиск товаров по подстроке в названии (регистронезависимо).
+    """
+    q = query.strip().lower()
+    if not q:
+        return []
+    results: List[dict] = []
+    for p in PRODUCTS.values():
+        if q in str(p.get("name", "")).lower():
+            results.append(p)
+            if len(results) >= max(1, limit):
+                break
+    return results
 
 
 def main():
+    # Load products on startup
+    PRODUCTS.clear()
+    PRODUCTS.update(load_prices("prices.csv"))
+
     # Configure and start the server
     logger.info("Starting MCP server on 0.0.0.0:8000")
     logger.info("Server will be accessible via SSE transport")
