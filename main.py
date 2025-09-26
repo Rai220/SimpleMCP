@@ -15,9 +15,6 @@ logger = logging.getLogger(__name__)
 # Create server
 mcp = FastMCP("Product & Tax Server")
 
-# In-memory products store loaded from prices.csv
-PRODUCTS: Dict[str, Dict[str, object]] = {}
-
 
 def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
     module_dir = Path(__file__).resolve().parent
@@ -75,19 +72,12 @@ def calc_tax(amount: float, year: int) -> float:
 
 
 @mcp.tool
-def get_product_by_sku(sku: str) -> Optional[dict]:
-    """
-    Вернуть товар по SKU из загруженного CSV.
-    """
-    sku_norm = sku.strip()
-    return PRODUCTS.get(sku_norm)
-
-
-@mcp.tool
 def search_products(query: str, limit: int = 10) -> List[dict]:
     """
     Поиск товаров по подстроке в названии (регистронезависимо).
     """
+    PRODUCTS = load_prices("prices.csv")
+    
     q = query.strip().lower()
     if not q:
         return []
@@ -101,11 +91,6 @@ def search_products(query: str, limit: int = 10) -> List[dict]:
 
 
 def main():
-    # Load products on startup
-    PRODUCTS.clear()
-    PRODUCTS.update(load_prices("prices.csv"))
-
-    # Configure and start the server
     logger.info("Starting MCP server on 0.0.0.0:8000")
     logger.info("Server will be accessible via SSE transport")
 
