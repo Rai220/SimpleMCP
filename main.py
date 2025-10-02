@@ -116,6 +116,7 @@ List[dict]
     return results
 
 
+@mcp.tool
 def send_notification_to_telegram(message: str) -> str:
     """
 Send a notification message to a Telegram chat using a bot.
