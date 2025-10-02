@@ -6,6 +6,8 @@ import csv
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
+import requests
+import os
 
 from fastmcp import FastMCP
 
@@ -53,7 +55,20 @@ def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
 @mcp.tool
 def calc_tax(amount: float, year: int) -> float:
     """
-    Налоговый калькулятор НДФЛ для РФ (физлица).
+Calculate Russian personal income tax (NDFL) for individuals.
+
+The calculation applies the following rules:
+- For years up to and including 2020: a flat 13% rate on the entire amount.
+- From 2021 onward: 13% on the first 5,000,000 RUB and 15% on any amount above that threshold.
+- Non-positive amounts result in zero tax.
+The final tax is rounded to 2 decimal places.
+
+Args:
+    amount (float): Taxable income in Russian rubles (RUB). If the value is less than or equal to 0, the tax is 0.0.
+    year (int): Calendar year determining which tax rules to apply.
+
+Returns:
+    float: The computed tax in RUB, rounded to two decimal places.
     """
     # Граничные случаи
     if amount <= 0:
@@ -74,7 +89,18 @@ def calc_tax(amount: float, year: int) -> float:
 @mcp.tool
 def search_products(query: str, limit: int = 10) -> List[dict]:
     """
-    Поиск товаров по подстроке в названии (регистронезависимо).
+Search products whose name or description contains the given substring (case-insensitive).
+
+query : str
+    The search string. Leading/trailing whitespace is ignored. If empty after stripping,
+    an empty list is returned.
+limit : int, optional
+    Maximum number of results to return. If less than 1, at most one result is returned.
+    Defaults to 10.
+Returns
+
+List[dict]
+    A list of matching product dictionaries, in the order they appear in the data source.
     """
     PRODUCTS = load_prices("prices.csv")
     
@@ -89,6 +115,46 @@ def search_products(query: str, limit: int = 10) -> List[dict]:
                 break
     return results
 
+
+def send_notification_to_telegram(message: str) -> str:
+    """
+Send a notification message to a Telegram chat using a bot.
+
+Args:
+    message (str): The message text to send.
+    
+Returns:
+    str: "OK" if the message was sent successfully, otherwise an error description.
+    """
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not bot_token or not chat_id:
+        logger.warning("Telegram bot token or chat ID not set in environment variables")
+        return "No TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID found in environment variables"
+
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        text = message if isinstance(message, str) else str(message)
+        if len(text) > 4096:
+            logger.warning("Message exceeds 4096 chars, truncating")
+            text = text[:4096]
+
+        resp = requests.post(
+            url,
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("ok", False):
+            desc = data.get("description") or "Unknown Telegram API error"
+            logger.error("Telegram API error: %s", desc)
+            return f"Telegram API error: {desc}"
+    except requests.RequestException as e:
+        logger.error("Telegram request failed: %s", e)
+        return f"Request failed: {e}"
+    
+    return "OK"
 
 def main():
     logger.info("Starting MCP server on 0.0.0.0:8000")
