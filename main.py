@@ -55,20 +55,15 @@ def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
 @mcp.tool
 def calc_tax(amount: float, year: int) -> float:
     """
-Calculate Russian personal income tax (NDFL) for individuals.
+    Расчет НДФЛ для физических лиц — налоговых резидентов РФ по основным видам
+    доходов (зарплата, премии и т.п.; п. 2.1 ст. 210 НК РФ).
 
-The calculation applies the following rules:
-- For years up to and including 2020: a flat 13% rate on the entire amount.
-- From 2021 onward: 13% on the first 5,000,000 RUB and 15% on any amount above that threshold.
-- Non-positive amounts result in zero tax.
-The final tax is rounded to 2 decimal places.
+    Аргументы:
+        amount (float): Совокупный облагаемый доход за календарный год, ₽.
+        year (int): Календарный год.
 
-Args:
-    amount (float): Taxable income in Russian rubles (RUB). If the value is less than or equal to 0, the tax is 0.0.
-    year (int): Calendar year determining which tax rules to apply.
-
-Returns:
-    float: The computed tax in RUB, rounded to two decimal places.
+    Возвращает:
+        float: Сумма НДФЛ в рублях (2 знака).
     """
     # Граничные случаи
     if amount <= 0:
@@ -78,11 +73,32 @@ Returns:
     if year <= 2020:
         return round(amount * 0.13, 2)
 
-    # С 2021 — прогрессия 13%/15% с порогом 5 млн ₽
-    threshold = 5_000_000.0
-    base_part = min(amount, threshold)
-    over_part = max(amount - threshold, 0.0)
-    tax = base_part * 0.13 + over_part * 0.15
+    # 2021–2024 — прогрессия 13%/15% с порогом 5 млн ₽
+    if year <= 2024:
+        threshold = 5_000_000.0
+        base_part = min(amount, threshold)
+        over_part = max(amount - threshold, 0.0)
+        tax = base_part * 0.13 + over_part * 0.15
+        return round(tax, 2)
+
+    # 2025+ — пятиступенчатая шкала
+    brackets = [
+        (2_400_000.0, 0.13),            # до 2,4 млн ₽
+        (5_000_000.0, 0.15),            # 2,4–5 млн ₽
+        (20_000_000.0, 0.18),           # 5–20 млн ₽
+        (50_000_000.0, 0.20),           # 20–50 млн ₽
+        (float("inf"), 0.22),           # свыше 50 млн ₽
+    ]
+
+    tax = 0.0
+    prev_limit = 0.0
+    for limit, rate in brackets:
+        slab = min(amount, limit) - prev_limit
+        if slab <= 0:
+            break
+        tax += slab * rate
+        prev_limit = limit
+
     return round(tax, 2)
 
 
@@ -117,9 +133,9 @@ List[dict]
 
 
 @mcp.tool
-def send_notification_to_telegram(message: str) -> str:
+def send_message_to_telegram(message: str) -> str:
     """
-Send a notification message to a Telegram chat using a bot.
+Send message to a Telegram chat using a bot. Message will send to current user.
 
 Args:
     message (str): The message text to send.
