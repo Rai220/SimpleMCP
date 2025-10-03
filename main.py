@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("Product & Tax Server")
 
 
-def load_prices(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
+def load_cars_data(csv_path: str = "prices.csv") -> Dict[str, Dict[str, object]]:
     module_dir = Path(__file__).resolve().parent
     path = Path(csv_path)
     if not path.is_absolute():
@@ -127,17 +127,18 @@ def search_products(query: str, limit: int = 10) -> List[dict]:
     List[dict]
         A list of matching product dictionaries, in the order they appear in the data source.
     """
-    PRODUCTS = load_prices("prices.csv")
+    CARS = load_cars_data("prices.csv")
 
     q = query.strip().lower()
     if not q:
         return []
     results: List[dict] = []
-    for p in PRODUCTS.values():
-        if (
-            q in str(p.get("name", "")).lower()
-            or q in str(p.get("description", "")).lower()
-        ):
+    for p in CARS.values():
+        brand = str(p.get("brand", "")).strip()
+        model = str(p.get("model", "")).strip()
+        combo1 = f"{brand} {model}".strip().lower()
+        combo2 = f"{model} {brand}".strip().lower()
+        if q in combo1 or q in combo2:
             results.append(p)
             if len(results) >= max(1, limit):
                 break
