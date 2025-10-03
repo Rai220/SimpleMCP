@@ -112,20 +112,21 @@ def transport_tax(tax_year: int, power: int) -> int:
 
 
 @mcp.tool
-def search_products(query: str, limit: int = 10) -> List[dict]:
+def search_cars_by_brand_model(query: str, limit: int = 10) -> List[dict]:
     """
-    Search products whose name or description contains the given substring (case-insensitive).
+    Search cars by brand and model in a CSV database (case-insensitive).
 
-    query : str
-        The search string. Leading/trailing whitespace is ignored. If empty after stripping,
-        an empty list is returned.
-    limit : int, optional
-        Maximum number of results to return. If less than 1, at most one result is returned.
-        Defaults to 10.
-    Returns
+    Looks for the query substring in "brand model" or "model brand". Returns matching
+    entries including price (price_rub) and horsepower (engine_power_hp).
 
-    List[dict]
-        A list of matching product dictionaries, in the order they appear in the data source.
+    Args:
+        query (str): Brand/model search string. Leading/trailing whitespace is ignored.
+                     If empty after stripping, an empty list is returned.
+        limit (int, optional): Maximum number of results to return. If less than 1,
+                               at most one result is returned. Defaults to 10.
+
+    Returns:
+        List[dict]: List of car dicts with keys: brand, model, price_rub, engine_power_hp.
     """
     CARS = load_cars_data("prices.csv")
 
