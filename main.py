@@ -112,9 +112,9 @@ def transport_tax(tax_year: int, power: int) -> int:
 
 
 @mcp.tool
-def search_cars_by_brand_model(query: str, limit: int = 10) -> List[dict]:
+def search_cars_db(query: str, limit: int = 10) -> List[dict]:
     """
-    Search cars by brand and model in a CSV database (case-insensitive).
+    Search cars by brand and model in a database (case-insensitive).
 
     Looks for the query substring in "brand model" or "model brand". Returns matching
     entries including price (price_rub) and horsepower (engine_power_hp).
