@@ -147,18 +147,23 @@ def search_cars_db(query: str, limit: int = 10) -> List[dict]:
 
 
 @mcp.tool
-def send_message_to_telegram(message: str) -> str:
+def send_message_to_telegram(message: str, chat_id: str = None) -> str:
     """
-    Send message to a Telegram chat using a bot. Message will send to current user.
+    Send message to a Telegram chat using a bot.
 
     Args:
         message (str): The message text to send.
+        chat_id (str, optional): The Telegram chat ID or group ID to send the message to.
+                                 If not provided, uses TELEGRAM_CHAT_ID from environment variables.
 
     Returns:
         str: "OK" if the message was sent successfully, otherwise an error description.
     """
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if chat_id is None:
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
     if not bot_token or not chat_id:
         logger.warning("Telegram bot token or chat ID not set in environment variables")
         return (
