@@ -153,7 +153,7 @@ def send_message_to_telegram(message: str, chat_id: str = None) -> str:
 
     Args:
         message (str): The message text to send.
-        chat_id (str, optional): The Telegram chat ID or group ID to send the message to.
+        chat_id (str, optional): The Telegram chat ID or group ID or user`s phone number to send the message to.
                                  If not provided, uses TELEGRAM_CHAT_ID from environment variables.
 
     Returns:
